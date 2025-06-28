@@ -124,7 +124,8 @@ async function run() {
 
                 const updateResult = await parcelsCollections.updateOne(find, updatedDoc);
 
-                res.send({insertResult, updateResult,
+                res.send({
+                    insertResult, updateResult,
                     success: true,
                     paymentRecordId: insertResult.insertedId,
                     updatedCount: updateResult.modifiedCount,
@@ -135,6 +136,20 @@ async function run() {
                 res.status(500).send({ success: false, error: error.message });
             }
         });
+
+        app.get('/payments', async (req, res) => {
+            const email = req.query.email
+            console.log(email);
+            const query = {}
+            if (email) {
+                query.customerEmail = email
+            }
+            const newest = {
+                sort: { created_At: -1 }
+            }
+            const result = await paymentsCollections.find(query, newest).toArray()
+            res.send(result)
+        })
 
 
 

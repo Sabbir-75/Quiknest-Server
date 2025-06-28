@@ -152,6 +152,23 @@ async function run() {
         })
 
 
+        // for users Authenticate by Once in firebase
+        const usersCollections = client.db("parcelsCode").collection("users")
+
+        app.post("/users", async (req, res) => {
+            const email = req.body.email
+            const query = { email: email }
+            const findResult = await usersCollections.findOne(query)
+            if(findResult){
+                return res.status(200).send({message: "user already exists", inserted: false})
+            }
+            const data = req.body
+            const result = await usersCollections.insertOne(data)
+            res.send(result)
+        })
+
+
+
 
 
 

@@ -2,6 +2,7 @@ require("dotenv").config()
 const express = require("express")
 const stripe = require('stripe')(process.env.PAYMENT_GATEWAY_KEY); // Replace with your Stripe secret key
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const admin = require("firebase-admin");
 const app = express()
 const port = process.env.PORT || 5000
 const cors = require("cors")
@@ -10,11 +11,54 @@ const cors = require("cors")
 app.use(cors())
 app.use(express.json())
 
+
+{/*-------------- For Verify Token and Email By Firebase accessToken and passed email  --------------*/ }
+
+// Firebase Admin 
+const decoded = Buffer.from(process.env.FIREBASE_ADMIN_KEY, "base64").toString("utf8")
+const serviceAccount = JSON.parse(decoded);
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
+
+// Firebase acessToken verify and store in decoded
+
+const firebaseVerifyToken = async (req, res, next) => {
+    const headers = req.headers.authorization
+    if (!headers) {
+        return res.status(401).send({ message: "Unauthorization Access for headers" })
+    }
+    const token = headers.split(" ")[1]
+    if (!token) {
+        return res.status(401).send({ message: "Unauthorization Access for token" })
+    }
+
+    try {
+        const decoded = await admin.auth().verifyIdToken(token)
+        req.decoded = decoded
+        next()
+    }
+    catch (error) {
+        return res.status(403).send({ message: "Forbidden Access allover headers and token" })
+    }
+
+}
+
+// Firebase verify By email
+
+const verifyEmail = (req, res, next) => {
+    if (req.query.email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access for email" })
+    }
+    next()
+}
+
+
+
+
 app.get("/", (req, res) => {
     res.send("Quiknest Database is running")
 })
-
-
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@inventorycluster.dks3jbe.mongodb.net/?retryWrites=true&w=majority&appName=inventoryCluster`;
 
@@ -40,7 +84,7 @@ async function run() {
 
         //user All parcels by Newest first || filtered by email
 
-        app.get("/parcels", async (req, res) => {
+        app.get("/parcels", firebaseVerifyToken, verifyEmail, async (req, res) => {
             const userEmail = req.query.email
             const query = userEmail ? { created_by: userEmail } : {}
             const options = {
@@ -137,9 +181,8 @@ async function run() {
             }
         });
 
-        app.get('/payments', async (req, res) => {
+        app.get('/payments', firebaseVerifyToken, verifyEmail, async (req, res) => {
             const email = req.query.email
-            console.log(email);
             const query = {}
             if (email) {
                 query.customerEmail = email
@@ -159,8 +202,8 @@ async function run() {
             const email = req.body.email
             const query = { email: email }
             const findResult = await usersCollections.findOne(query)
-            if(findResult){
-                return res.status(200).send({message: "user already exists", inserted: false})
+            if (findResult) {
+                return res.status(200).send({ message: "user already exists", inserted: false })
             }
             const data = req.body
             const result = await usersCollections.insertOne(data)

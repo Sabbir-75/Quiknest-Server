@@ -110,6 +110,95 @@ async function run() {
             res.send(result)
         })
 
+        app.get("/riders/parcels/:email", async (req, res) => {
+            const email = req.params.email
+            const query = {
+                riderEmail: email,
+                delivery_status: {
+                    $in: ["assigned", "in_transit"]
+                }
+            }
+            const result = await parcelsCollections.find(query).toArray()
+            res.send(result)
+
+        })
+
+        app.patch("/parcels/stateChange/:id", async (req, res) => {
+            const ParcelId = req.params.id
+            const query = { _id: new ObjectId(ParcelId) }
+            const { status } = req.body
+            const updatedDoc = {
+                $set: {
+                    delivery_status: status,
+                    lastUpdated: new Date().toISOString()
+                }
+            }
+
+            const result = await parcelsCollections.updateOne(query, updatedDoc)
+            res.send(result)
+
+        })
+
+
+        app.get("/parcel/complete", async (req, res) => {
+            const delivery_status = req.query.delivery_status
+            console.log("Query from client:", delivery_status);
+
+            if (delivery_status) {
+                const query = { delivery_status };
+                const result = await parcelsCollections.find(query).toArray();
+                res.send(result); // ✅ Always send a response
+            } else {
+                res.status(400).send({ error: "delivery_status query is missing" });
+            }
+        });
+
+
+        app.patch("/parcel/paid/:id", async (req, res) => {
+            const ParcelId = req.params.id
+            const query = { _id: new ObjectId(ParcelId) }
+            const { rider_amount } = req.body
+            if (rider_amount) {
+                const updatedDoc = {
+                    $set: {
+                        cashout_tk: rider_amount,
+                        cashout_at: new Date().toISOString()
+                    }
+                }
+
+                const result = await parcelsCollections.updateOne(query, updatedDoc)
+                res.send(result)
+            }
+
+
+        })
+
+        // Express + MongoDB
+        app.get("/rider/completed-parcels", async (req, res) => {
+            const email = req.query.email;
+
+            if (!email) {
+                return res.status(400).send({ error: "Email is required" });
+            }
+
+            const result = await parcelsCollections
+                .find({
+                    riderEmail: email,
+                    delivery_status: "delivered",
+                })
+                .sort({ cashout_at: -1 }) // Optional: latest first
+                .toArray();
+
+            res.send(result);
+        });
+
+
+
+
+
+
+
+
 
 
         // Payment System Integration
@@ -253,7 +342,6 @@ async function run() {
             const email = req.decoded.email
             const query = { email }
             const user = await usersCollections.findOne(query)
-            console.log(user);
 
             if (!user || user.role !== "admin") {
                 return res.status(403).send({ message: "forbidden access for Admin" })
@@ -293,11 +381,23 @@ async function run() {
             const riders = req.body
             const result = await ridersCollections.insertOne(riders)
             res.send(result)
+            const email = riders.email
+            const query = await usersCollections.findOne({ email })
+            if (query) {
+                const newQuery = { email: query.email }
+                const updateDoc = {
+                    $set: {
+                        role: "rider"
+                    }
+                }
+                await usersCollections.updateOne(newQuery, updateDoc)
+            }
         })
+
+
 
         app.get("/riders/assign", async (req, res) => {
             const { payment_status, delivery_status } = req.query
-            console.log(payment_status, delivery_status);
             if (payment_status && delivery_status) {
                 const query = {
                     payment_status: payment_status || "paid",
@@ -427,7 +527,7 @@ async function run() {
                 }
             );
 
-            res.send({result,updateResult});
+            res.send({ result, updateResult });
         });
 
 

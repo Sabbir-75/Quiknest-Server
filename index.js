@@ -92,6 +92,54 @@ async function run() {
             res.send(result)
         })
 
+        app.get("/user/dashboard-summary/details", async (req, res) => {
+            // const email = req.query.email
+
+            const pipeline = [
+                {
+                    $group: {
+                        _id: "$created_by",
+                        count: {
+                            $sum: 1
+                        }
+                    }
+                },
+                {
+                    $project : {
+                        email: "$_id",
+                        count: 1,
+                        _id: 0
+                    }
+                }
+            ]
+            const result = await parcelsCollections.aggregate(pipeline).toArray()
+            res.send(result)
+        });
+
+         app.get("/user/dashboard-summary/delivery_status", async (req, res) => {
+            // const email = req.query.email
+
+            const pipeline = [
+                {
+                    $group: {
+                        _id: "$delivery_status",
+                        count: {
+                            $sum: 1
+                        }
+                    }
+                },
+                {
+                    $project : {
+                        delivery_status: "$_id",
+                        count: 1,
+                        _id: 0
+                    }
+                }
+            ]
+            const result = await parcelsCollections.aggregate(pipeline).toArray()
+            res.send(result)
+        });
+
         // get single data 
 
         app.get("/parcels/:id", async (req, res) => {
@@ -193,7 +241,41 @@ async function run() {
         });
 
 
+        app.get("/parcel/delivered/:id", async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const result = await parcelsCollections.findOne(query)
+            res.send(result)
+        });
 
+
+
+
+        // Trakinglog
+
+        const trakingsCollections = client.db("parcelsCode").collection("trakings")
+
+        app.post("/trackings", async (req, res) => {
+            const update = req.body;
+
+            update.timestamp = new Date();
+
+            const result = await trakingsCollections.insertOne(update);
+            res.send(result).status(201)
+        });
+
+        app.get("/tracking/:trackingId", async (req, res) => {
+            const trackingId = req.params.trackingId;
+
+            const updates = await trakingsCollections
+                .find({ tracking_id: trackingId })
+                .toArray();
+
+            res.send(updates);
+        });
+
+
+        // user summary 
 
 
 
